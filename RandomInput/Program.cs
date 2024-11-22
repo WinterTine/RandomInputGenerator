@@ -10,11 +10,25 @@ using System.Linq;
 using System.Diagnostics;
 using System.Threading;
 using WindowsInput;
+using System.Text.Json;
+using Newtonsoft.Json;
 
 namespace RandomInput
 {
+    public class InputData
+    {
+        public List<KeyInput> Keys { get; set; }
+    }
+
+    public class KeyInput
+    {
+        public string Key { get; set; }
+        public double Chance { get; set; }
+    }
     class Program
     {
+        private static List<KeyInput> inputs;
+        private static Random rand = new Random();
         private static Thread worker;
         private static bool doLoop = false;
         private static IntPtr targetWindowHandle;
@@ -24,6 +38,12 @@ namespace RandomInput
 
         static void Main(string[] args)
         {
+            inputs = LoadInputs("inputs.json");
+            if (inputs == null || inputs.Count == 0)
+            {
+                Console.WriteLine("No valid inputs found in inputs.json. Exiting.");
+                return;
+            }
             Console.WriteLine("Select the process you want to target (Apps only):");
 
             Process[] processes = Process.GetProcesses();
@@ -95,10 +115,37 @@ namespace RandomInput
             Console.ReadKey();
            
         }
+        static List<KeyInput> LoadInputs(string filePath)
+        {
+            if (!File.Exists(filePath))
+            {
+                Console.WriteLine($"File {filePath} not found.");
+                return null;
+            }
+
+            var json = File.ReadAllText(filePath);
+            InputData inputData = JsonConvert.DeserializeObject<InputData>(json);
+
+            if (inputData?.Keys == null || !inputData.Keys.Any())
+            {
+                Console.WriteLine("Invalid or empty inputs.json.");
+                return null;
+            }
+
+            // Validate probabilities
+            double totalChance = inputData.Keys.Sum(k => k.Chance);
+            if (Math.Abs(totalChance - 1.0) > 0.0001)
+            {
+                Console.WriteLine("The chances in inputs.json do not add up to 1.");
+                return null;
+            }
+
+            return inputData.Keys;
+        }
         static void doRandomKeystroke()
         {
             InputSimulator isim = new InputSimulator();
-            Random randkey = new Random();
+
             while (doLoop)
             {
                 if (!SetForegroundWindow(targetWindowHandle))
@@ -107,77 +154,44 @@ namespace RandomInput
                     doLoop = false;
                     return;
                 }
-                Thread.Sleep(200);
-                int key = randkey.Next(1, 19);
-                if (key >= 1 && key < 6)
-                {
-                    Console.WriteLine("Sending M1");
-                    isim.Mouse.LeftButtonDown();
-                    Thread.Sleep(50);
-                    isim.Mouse.LeftButtonUp();
-                }
-                if (key >= 6 && key < 11)
-                {
-                    Console.WriteLine("Sending M2");
-                    isim.Mouse.RightButtonDown();
-                    Thread.Sleep(50);
-                    isim.Mouse.RightButtonUp();
-                }
-                if (key == 11 || key == 12)
-                {
-                    Console.WriteLine("Sending E");
-                    isim.Keyboard.KeyDown(WindowsInput.Native.VirtualKeyCode.VK_E);
-                    Thread.Sleep(50);
-                    isim.Keyboard.KeyUp(WindowsInput.Native.VirtualKeyCode.VK_E);
-                }
-                if (key == 13)
-                {
-                    Console.WriteLine("Sending R");
-                    isim.Keyboard.KeyDown(WindowsInput.Native.VirtualKeyCode.VK_R);
-                    Thread.Sleep(50);
-                    isim.Keyboard.KeyUp(WindowsInput.Native.VirtualKeyCode.VK_R);
-                }
-                if (key == 14)
-                {
-                    Console.WriteLine("Sending SPACE");
-                    isim.Keyboard.KeyDown(WindowsInput.Native.VirtualKeyCode.SPACE);
-                    Thread.Sleep(50);
-                    isim.Keyboard.KeyUp(WindowsInput.Native.VirtualKeyCode.SPACE);
-                }
-                if (key == 15)
-                {
-                    Console.WriteLine("Sending W");
-                    isim.Keyboard.KeyDown(WindowsInput.Native.VirtualKeyCode.VK_W);
-                    Thread.Sleep(500);
-                    isim.Keyboard.KeyUp(WindowsInput.Native.VirtualKeyCode.VK_W);
-                }
-                if (key == 16)
-                {
-                    Console.WriteLine("Sending A");
-                    isim.Keyboard.KeyDown(WindowsInput.Native.VirtualKeyCode.VK_A);
-                    Thread.Sleep(500);
-                    isim.Keyboard.KeyUp(WindowsInput.Native.VirtualKeyCode.VK_A);
-                }
-                if (key == 17)
-                {
-                    Console.WriteLine("Sending S");
-                    isim.Keyboard.KeyDown(WindowsInput.Native.VirtualKeyCode.VK_S);
-                    Thread.Sleep(500);
-                    isim.Keyboard.KeyUp(WindowsInput.Native.VirtualKeyCode.VK_S);
 
-                }
-                if (key == 18)
+                Thread.Sleep(200);
+
+                // Randomly select a key based on probabilities
+                double randomValue = rand.NextDouble();
+                double cumulative = 0;
+
+                foreach (var input in inputs)
                 {
-                    Console.WriteLine("Sending D");
-                    isim.Keyboard.KeyDown(WindowsInput.Native.VirtualKeyCode.VK_D);
-                    Thread.Sleep(500);
-                    isim.Keyboard.KeyUp(WindowsInput.Native.VirtualKeyCode.VK_D);
+                    cumulative += input.Chance;
+                    if (randomValue <= cumulative)
+                    {
+                        Console.WriteLine($"Sending {input.Key}");
+                        SimulateKey(isim, input.Key);
+                        break;
+                    }
                 }
             }
-            
-            
-
         }
-
+        static void SimulateKey(InputSimulator isim, string key)
+        {
+            if (Enum.TryParse(typeof(WindowsInput.Native.VirtualKeyCode), "VK_" + key.ToUpper(), out var vkCode))
+            {
+                // Simulate key press if it's a valid VirtualKeyCode
+                isim.Keyboard.KeyPress((WindowsInput.Native.VirtualKeyCode)vkCode);
+            }
+            else if (key.ToUpper() == "M1")
+            {
+                isim.Mouse.LeftButtonClick();
+            }
+            else if (key.ToUpper() == "M2")
+            {
+                isim.Mouse.RightButtonClick();
+            }
+            else
+            {
+                Console.WriteLine($"Unrecognized key: {key}. Skipping.");
+            }
         }
+    }
 }

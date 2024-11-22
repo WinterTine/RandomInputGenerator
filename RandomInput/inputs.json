@@ -1,0 +1,40 @@
+{
+	"keys": [
+		{
+			"key": "W",
+			"chance": 0.05
+		},
+		{
+			"key": "A",
+			"chance": 0.05
+		},
+		{
+			"key": "S",
+			"chance": 0.05
+		},
+		{
+			"key": "D",
+			"chance": 0.05
+		},
+		{
+			"key": "SPACE",
+			"chance": 0.05
+		},
+		{
+			"key": "E",
+			"chance": 0.05
+		},
+		{
+			"key": "R",
+			"chance": 0.05
+		},
+		{
+			"key": "M1",
+			"chance": 0.325
+		},
+		{
+			"key": "M2",
+			"chance": 0.325
+		}
+	]
+}
